@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#eef0f2">
+<title>匿名ラジオプレーヤー</title>
+<style>
+/* layout: 上に回一覧、下に固定プレーヤー。スマホ片手操作前提 */
+:root{
+  --bg:#eef0f2; --panel:#fbfbfc; --fg:#1b2127; --sub:#5d6873; --line:#d6dbe0;
+  --accent:#e0452b; --accent-fg:#fff; --ok:#2f8f5b; --bar:#cdd3d9;
+  --font:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic",Meiryo,system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#14181c; --panel:#1c2227; --fg:#e8ecef; --sub:#9aa5af; --line:#2b333a;
+    --accent:#ff6a4d; --accent-fg:#1a0d09; --ok:#5fc08a; --bar:#323b43; color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--fg);font:15px/1.6 var(--font);-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:680px;margin:0 auto;padding:0 max(16px,env(safe-area-inset-left,0px)) 0 max(16px,env(safe-area-inset-right,0px))}
+main{padding-block:calc(20px + env(safe-area-inset-top,0px)) calc(230px + env(safe-area-inset-bottom,0px))}
+header h1{font-size:22px;line-height:1.3;margin:0;letter-spacing:.02em}
+header p{margin:2px 0 0;color:var(--sub);font-size:13px}
+.resume{margin:18px 0 8px;padding:14px 16px;background:var(--panel);border:1px solid var(--line);border-radius:10px;display:flex;gap:12px;align-items:center}
+.resume[hidden]{display:none}
+.resume .t{min-width:0;flex:1}
+.resume .k{font-size:12px;color:var(--sub)}
+.resume .n{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn{border:0;background:var(--accent);color:var(--accent-fg);font-weight:700;padding:9px 16px;border-radius:999px}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line);font-weight:500}
+.tools{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 6px}
+.tools input[type=search]{flex:1 1 180px;min-width:0;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--fg);font:inherit}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
+.seg button{border:0;background:none;padding:8px 11px;font-size:13px;color:var(--sub)}
+.seg button[aria-pressed=true]{background:var(--fg);color:var(--bg)}
+ul.list{list-style:none;margin:0;padding:0}
+.ep{display:grid;grid-template-columns:48px 1fr auto;gap:10px;align-items:center;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:12px 2px;position:relative}
+.ep .no{font-variant-numeric:tabular-nums;color:var(--sub);font-size:13px;text-align:right}
+.ep .tt{min-width:0}
+.ep .tt b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ep .tt small{color:var(--sub);font-size:12px}
+.ep .st{font-size:12px;color:var(--sub);white-space:nowrap}
+.ep.cur .tt b{color:var(--accent)}
+.ep.cur .no{color:var(--accent);font-weight:700}
+.ep.done .st{color:var(--ok)}
+.ep .pg{grid-column:2/4;height:3px;background:var(--bar);border-radius:2px;overflow:hidden;margin-top:-4px}
+.ep .pg i{display:block;height:100%;background:var(--accent)}
+.msg{padding:28px 0;color:var(--sub);text-align:center}
+details.set{margin:28px 0 0;border-top:1px solid var(--line);padding-top:12px}
+details.set summary{cursor:pointer;font-weight:700}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0}
+.row label{display:flex;gap:8px;align-items:center}
+.note{font-size:12px;color:var(--sub);margin:6px 0}
+.note a{color:inherit}
+.player{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line);
+  padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  box-shadow:0 -6px 20px rgba(0,0,0,.06)}
+.player .in{max-width:680px;margin:0 auto}
+.now{display:flex;gap:8px;align-items:baseline;justify-content:space-between}
+.now b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.now a{font-size:12px;color:var(--sub);white-space:nowrap}
+.seek{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums;margin:2px 0}
+input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
+.ctl{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.ctl .ic{border:0;background:none;width:44px;height:44px;border-radius:50%;font-size:12px;font-weight:700;color:var(--fg)}
+.ctl .play{width:56px;height:56px;background:var(--accent);color:var(--accent-fg);font-size:20px;line-height:1}
+.ctl select{border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:8px;padding:6px 8px;font:inherit;font-size:13px}
+.sleepmark{font-size:11px;color:var(--accent);text-align:center;min-height:14px}
+@media (prefers-reduced-motion:no-preference){.ep{transition:background .15s}.ep:hover{background:color-mix(in srgb,var(--fg) 4%,transparent)}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <h1>匿名ラジオプレーヤー</h1>
+    <p>ARuFa・ダ・ヴィンチ・恐山の匿名ラジオを、続きから聴く</p>
+  </header>
+  <section class="resume" id="resume" hidden>
+    <div class="t"><div class="k">続きから</div><div class="n" id="resumeName"></div></div>
+    <button class="btn" id="resumeBtn" type="button">再生</button>
+  </section>
+  <div class="tools">
+    <input type="search" id="q" placeholder="タイトル・番号で検索" aria-label="検索">
+    <div class="seg" id="filter" role="group" aria-label="絞り込み">
+      <button type="button" data-v="all" aria-pressed="true">すべて</button>
+      <button type="button" data-v="new" aria-pressed="false">未聴</button>
+      <button type="button" data-v="mid" aria-pressed="false">途中</button>
+      <button type="button" data-v="done" aria-pressed="false">聴了</button>
+    </div>
+    <div class="seg" id="order" role="group" aria-label="並び順">
+      <button type="button" data-v="desc" aria-pressed="true">新しい順</button>
+      <button type="button" data-v="asc" aria-pressed="false">古い順</button>
+    </div>
+  </div>
+  <ul class="list" id="list"></ul>
+  <div class="msg" id="msg">読み込み中…</div>
+  <details class="set">
+    <summary>設定</summary>
+    <div class="row"><label><input type="checkbox" id="auto" checked>次の回を自動再生(回番号順)</label></div>
+    <div class="row">
+      <button class="btn ghost" id="exp" type="button">履歴を書き出す</button>
+      <button class="btn ghost" id="imp" type="button">読み込む</button>
+      <input type="file" id="impFile" accept="application/json" hidden>
+    </div>
+    <p class="note">再生位置と聴いた回は、このブラウザにだけ保存されます。アカウントは不要で、何も送信しません。</p>
+    <p class="note">非公式のファンメイドプレーヤーです。音源はオモコロの配信元から直接ストリーミングします。<a href="https://omocoro.jp/tag/匿名ラジオ" target="_blank" rel="noopener">オモコロの番組ページ</a> / 番組目録: <a href="https://github.com/arrow2nd/omkr-radio" target="_blank" rel="noopener">arrow2nd/omkr-radio</a></p>
+  </details>
+</main>
+<div class="player">
+  <div class="in">
+    <div class="now"><b id="nowTitle">回を選んでください</b><a id="nowLink" href="#" target="_blank" rel="noopener" hidden>記事を開く</a></div>
+    <div class="seek"><span id="cur">0:00</span><input type="range" id="seek" min="0" max="0" value="0" step="1" aria-label="再生位置"><span id="dur">–:––</span></div>
+    <div class="ctl">
+      <select id="speed" aria-label="再生速度">
+        <option value="0.8">0.8x</option><option value="1" selected>1.0x</option><option value="1.2">1.2x</option>
+        <option value="1.5">1.5x</option><option value="1.8">1.8x</option><option value="2">2.0x</option>
+      </select>
+      <button class="ic" id="prev" type="button" aria-label="前の回">⏮</button>
+      <button class="ic" id="back" type="button" aria-label="15秒戻る">-15</button>
+      <button class="ic play" id="play" type="button" aria-label="再生">▶</button>
+      <button class="ic" id="fwd" type="button" aria-label="30秒進む">+30</button>
+      <button class="ic" id="next" type="button" aria-label="次の回">⏭</button>
+      <select id="sleep" aria-label="スリープタイマー">
+        <option value="off">タイマー</option><option value="end">この回の終わり</option>
+        <option value="15">15分</option><option value="30">30分</option><option value="60">60分</option>
+      </select>
+    </div>
+    <div class="sleepmark" id="sleepMark"></div>
+  </div>
+</div>
+<audio id="au" preload="none"></audio>
+<script>
+(function(){
+  'use strict';
+  var DATA_URL = 'https://arrow2nd.github.io/omkr-radio/json/tokumei.json';
+  var K_PROG='tokumei.progress.v1', K_SET='tokumei.settings.v1', K_CACHE='tokumei.episodes.v1';
+  function load(k,def){ try{ var v=localStorage.getItem(k); return v?JSON.parse(v):def; }catch(e){ return def; } }
+  function save(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+  var $=function(id){return document.getElementById(id)};
+  var au=$('au'), listEl=$('list'), msg=$('msg');
+  var eps=[];
+  var prog=load(K_PROG,{});
+  var set=Object.assign({speed:1,auto:true,order:'desc',filter:'all',last:null},load(K_SET,{}));
+  var curKey=null, q='', sleepTimer=null, sleepEnd=false, sleepAt=0, lastSave=0, seeking=false;
+  function keyOf(e){ return String(e.number!=null?e.number:e.source); }
+  function fmt(s){ if(!isFinite(s)||s<0) return '–:––'; s=Math.floor(s); var h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60;
+    return (h?h+':'+String(m).padStart(2,'0'):m)+':'+String(x).padStart(2,'0'); }
+  function dateOf(e){ var d=new Date(e.pubDate); return isNaN(d)?'':new Intl.DateTimeFormat('ja-JP',{year:'numeric',month:'numeric',day:'numeric',timeZone:'Asia/Tokyo'}).format(d); }
+  function status(e){ var p=prog[keyOf(e)]; if(!p) return 'new'; if(p.done) return 'done'; return p.t>5?'mid':'new'; }
+  function byKey(k){ for(var i=0;i<eps.length;i++) if(keyOf(eps[i])===k) return eps[i]; return null; }
+  function saveSet(){ save(K_SET,set); }
+  function saveProg(){ save(K_PROG,prog); }
+  function render(){
+    var s=q.trim().toLowerCase(), rows=eps.filter(function(e){
+      if(set.filter!=='all' && status(e)!==set.filter) return false;
+      if(!s) return true;
+      return (String(e.number)+' '+(e.title||'')).toLowerCase().indexOf(s)>=0;
+    });
+    if(set.order==='desc') rows=rows.slice().reverse();
+    listEl.textContent='';
+    var frag=document.createDocumentFragment();
+    rows.forEach(function(e){
+      var k=keyOf(e), p=prog[k], st=status(e);
+      var b=document.createElement('button'); b.type='button'; b.className='ep'+(k===curKey?' cur':'')+(st==='done'?' done':''); b.dataset.k=k;
+      var no=document.createElement('span'); no.className='no'; no.textContent='#'+(e.number!=null?e.number:'');
+      var tt=document.createElement('span'); tt.className='tt';
+      var t=document.createElement('b'); t.textContent=e.title||'(無題)';
+      var sm=document.createElement('small'); sm.textContent=dateOf(e);
+      tt.appendChild(t); tt.appendChild(sm);
+      var stx=document.createElement('span'); stx.className='st';
+      stx.textContent= st==='done'?'聴了': (st==='mid'?fmt(p.t)+' / '+fmt(p.d):'');
+      b.appendChild(no); b.appendChild(tt); b.appendChild(stx);
+      if(st==='mid' && p.d>0){ var g=document.createElement('span'); g.className='pg'; var i=document.createElement('i'); i.style.width=Math.min(100,p.t/p.d*100)+'%'; g.appendChild(i); b.appendChild(g); }
+      frag.appendChild(b);
+    });
+    listEl.appendChild(frag);
+    msg.textContent = rows.length?'':(eps.length?'該当する回がありません':'');
+    updateResume();
+    ['filter','order'].forEach(function(id){ Array.prototype.forEach.call($(id).children,function(x){ x.setAttribute('aria-pressed',String(x.dataset.v===set[id])); }); });
+  }
+  listEl.addEventListener('click',function(ev){ var b=ev.target.closest('.ep'); if(b) play(b.dataset.k,true); });
+  function updateResume(){
+    var e=set.last&&byKey(set.last), p=e&&prog[set.last];
+    $('resume').hidden=!(e && !(p&&p.done) && k_ne(set.last));
+    if(e){ $('resumeName').textContent='#'+e.number+' '+(e.title||'')+(p&&p.t>5?'('+fmt(p.t)+'から)':''); }
+  }
+  function k_ne(k){ return k!==curKey || au.paused; }
+  $('resumeBtn').addEventListener('click',function(){ if(set.last) play(set.last,true); });
+  function setNow(e){
+    $('nowTitle').textContent='#'+e.number+' '+(e.title||'');
+    var a=$('nowLink'); if(e.link){ a.href=e.link; a.hidden=false; } else a.hidden=true;
+    if('mediaSession' in navigator){
+      try{ navigator.mediaSession.metadata=new MediaMetadata({title:'#'+e.number+' '+(e.title||''),artist:'ARuFa・ダ・ヴィンチ・恐山',album:'匿名ラジオ'}); }catch(x){}
+    }
+  }
+  function play(k,autoplay){
+    var e=byKey(k); if(!e) return;
+    if(curKey!==k){
+      commit();
+      curKey=k; set.last=k; saveSet();
+      au.src=e.source; au.playbackRate=set.speed; setNow(e);
+      var p=prog[k], start=(p&&!p.done&&p.t>5)?Math.max(0,p.t-3):0;
+      var seekTo=function(){ if(start){ try{ au.currentTime=start; }catch(x){} } au.removeEventListener('loadedmetadata',seekTo); };
+      au.addEventListener('loadedmetadata',seekTo);
+      if(p&&p.done){ prog[k]={t:0,d:p.d,done:false,at:Date.now()}; }
+    }
+    if(autoplay){ var pr=au.play(); if(pr&&pr.catch) pr.catch(function(){}); }
+    render();
+  }
+  function commit(){
+    if(!curKey||!isFinite(au.duration)) return;
+    var old=prog[curKey]||{};
+    prog[curKey]={t:au.currentTime,d:au.duration,done:!!old.done&&au.currentTime>=au.duration-1,at:Date.now()};
+    saveProg();
+  }
+  function step(dir){
+    var i=eps.findIndex(function(e){return keyOf(e)===curKey;}); if(i<0) return false;
+    var n=eps[i+dir]; if(!n) return false; play(keyOf(n),true); return true;
+  }
+  au.addEventListener('play',function(){ $('play').textContent='❚❚'; $('play').setAttribute('aria-label','一時停止'); });
+  au.addEventListener('pause',function(){ $('play').textContent='▶'; $('play').setAttribute('aria-label','再生'); commit(); render(); });
+  au.addEventListener('loadedmetadata',function(){ $('seek').max=Math.floor(au.duration)||0; $('dur').textContent=fmt(au.duration); });
+  au.addEventListener('durationchange',function(){ $('seek').max=Math.floor(au.duration)||0; $('dur').textContent=fmt(au.duration); });
+  au.addEventListener('timeupdate',function(){
+    if(!seeking){ $('seek').value=Math.floor(au.currentTime); }
+    $('cur').textContent=fmt(au.currentTime);
+    var now=Date.now(); if(now-lastSave>4000){ lastSave=now; commit(); }
+  });
+  au.addEventListener('error',function(){ $('nowTitle').textContent='再生できませんでした。別の回を試すか、時間をおいてください'; });
+  au.addEventListener('ended',function(){
+    if(curKey){ prog[curKey]={t:0,d:au.duration,done:true,at:Date.now()}; saveProg(); }
+    if(sleepEnd){ clearSleep(); render(); return; }
+    if(set.auto){ var i=eps.findIndex(function(e){return keyOf(e)===curKey;}); var n=eps[i+1]; if(n){ play(keyOf(n),true); return; } }
+    render();
+  });
+  document.addEventListener('visibilitychange',function(){ if(document.hidden) commit(); });
+  window.addEventListener('pagehide',commit);
+  $('play').addEventListener('click',function(){
+    if(!curKey){ var k=set.last||(eps.length?keyOf(set.last?byKey(set.last):eps[0]):null); if(k) play(k,true); return; }
+    if(au.paused){ var p=au.play(); if(p&&p.catch) p.catch(function(){}); } else au.pause();
+  });
+  $('back').addEventListener('click',function(){ au.currentTime=Math.max(0,au.currentTime-15); });
+  $('fwd').addEventListener('click',function(){ au.currentTime=Math.min(au.duration||1e9,au.currentTime+30); });
+  $('prev').addEventListener('click',function(){ if(au.currentTime>5){ au.currentTime=0; } else step(-1); });
+  $('next').addEventListener('click',function(){ step(1); });
+  var sk=$('seek');
+  sk.addEventListener('input',function(){ seeking=true; $('cur').textContent=fmt(+sk.value); });
+  sk.addEventListener('change',function(){ au.currentTime=+sk.value; seeking=false; });
+  $('speed').addEventListener('change',function(){ set.speed=+this.value; au.playbackRate=set.speed; saveSet(); });
+  $('auto').addEventListener('change',function(){ set.auto=this.checked; saveSet(); });
+  $('q').addEventListener('input',function(){ q=this.value; render(); });
+  ['filter','order'].forEach(function(id){
+    $(id).addEventListener('click',function(ev){ var b=ev.target.closest('button'); if(!b) return; set[id]=b.dataset.v; saveSet(); render(); });
+  });
+  function clearSleep(){ clearInterval(sleepTimer); sleepTimer=null; sleepEnd=false; $('sleep').value='off'; $('sleepMark').textContent=''; }
+  $('sleep').addEventListener('change',function(){
+    var v=this.value; clearInterval(sleepTimer); sleepTimer=null; sleepEnd=false; $('sleepMark').textContent='';
+    if(v==='off') return;
+    if(v==='end'){ sleepEnd=true; $('sleepMark').textContent='この回の終わりで停止'; return; }
+    sleepAt=Date.now()+(+v)*60000;
+    sleepTimer=setInterval(function(){
+      var left=sleepAt-Date.now();
+      if(left<=0){ au.pause(); clearSleep(); return; }
+      $('sleepMark').textContent='あと'+Math.ceil(left/60000)+'分で停止';
+    },1000);
+  });
+  $('exp').addEventListener('click',function(){
+    commit();
+    var blob=new Blob([JSON.stringify({v:1,progress:prog,last:set.last},null,1)],{type:'application/json'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='tokumei-player-history.json';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){URL.revokeObjectURL(a.href)},2000);
+  });
+  $('imp').addEventListener('click',function(){ $('impFile').click(); });
+  $('impFile').addEventListener('change',function(){
+    var f=this.files[0]; if(!f) return;
+    var r=new FileReader();
+    r.onload=function(){
+      try{
+        var o=JSON.parse(r.result); if(!o||typeof o.progress!=='object') throw 0;
+        Object.keys(o.progress).forEach(function(k){
+          var n=o.progress[k], m=prog[k];
+          if(n&&typeof n.t==='number'&&(!m||(n.at||0)>(m.at||0))) prog[k]=n;
+        });
+        if(o.last) set.last=String(o.last);
+        saveProg(); saveSet(); render(); msg.textContent='履歴を読み込みました';
+      }catch(x){ msg.textContent='読み込めないファイルです'; }
+    };
+    r.readAsText(f); this.value='';
+  });
+  if('mediaSession' in navigator){
+    var ms=navigator.mediaSession, h=function(n,f){ try{ ms.setActionHandler(n,f); }catch(x){} };
+    h('play',function(){ au.play(); }); h('pause',function(){ au.pause(); });
+    h('seekbackward',function(){ au.currentTime=Math.max(0,au.currentTime-15); });
+    h('seekforward',function(){ au.currentTime=au.currentTime+30; });
+    h('previoustrack',function(){ step(-1); }); h('nexttrack',function(){ step(1); });
+  }
+  document.addEventListener('keydown',function(ev){
+    var t=ev.target.tagName; if(t==='INPUT'||t==='SELECT'||t==='TEXTAREA'||ev.metaKey||ev.ctrlKey) return;
+    if(ev.key===' '){ ev.preventDefault(); $('play').click(); }
+    else if(ev.key==='ArrowLeft') $('back').click();
+    else if(ev.key==='ArrowRight') $('fwd').click();
+  });
+  function normalize(a){
+    return (Array.isArray(a)?a:[]).filter(function(e){return e&&e.source;}).sort(function(x,y){
+      return (x.number||0)-(y.number||0) || new Date(x.pubDate)-new Date(y.pubDate);
+    });
+  }
+  function start(list,fromCache){
+    eps=normalize(list);
+    $('speed').value=String(set.speed); $('auto').checked=!!set.auto;
+    if(!eps.length){ msg.textContent='エピソードが見つかりませんでした'; return; }
+    if(set.last&&byKey(set.last)){ var e=byKey(set.last); curKey=set.last; au.src=e.source; au.playbackRate=set.speed; setNow(e);
+      var p=prog[set.last]; if(p&&p.t>5&&!p.done){ au.addEventListener('loadedmetadata',function f(){ try{au.currentTime=Math.max(0,p.t-3);}catch(x){} au.removeEventListener('loadedmetadata',f); }); $('cur').textContent=fmt(p.t); $('dur').textContent=fmt(p.d); }
+      curKey=set.last;
+    }
+    render();
+    if(fromCache) msg.textContent=(msg.textContent?msg.textContent+' ':'')+'(保存済みの一覧を表示中)';
+  }
+  var cache=load(K_CACHE,null);
+  if(cache&&cache.length) start(cache,false);
+  fetch(DATA_URL,{cache:'no-cache'}).then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function(j){ save(K_CACHE,j); var keep=curKey; start(j,false); if(keep&&byKey(keep)){ curKey=keep; render(); } })
+    .catch(function(){
+      if(!eps.length){ msg.innerHTML=''; msg.textContent='番組一覧を取得できませんでした。通信状況を確認して、ページを再読み込みしてください。'; }
+      else { msg.textContent='最新の一覧を取得できませんでした(保存済みの一覧を表示中)'; }
+    });
+})();
+</script>
+</body>
+</html>
